@@ -1,0 +1,10 @@
+# Bicep build artifacts
+**/*.bicepparam.json
+**/main.json
+
+# Azure CLI / azd
+.azure/
+
+# OS
+Thumbs.db
+.DS_Store
