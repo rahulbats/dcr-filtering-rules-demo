@@ -113,6 +113,23 @@ The full URL used by the send script to POST records is:
 <endpoint>/dataCollectionRules/<dcrImmutableId>/streams/<streamName>?api-version=2023-01-01
 ```
 
+**Authentication & authorization:** Although the endpoint URL is public, every
+request **must** include a valid Azure AD / Entra ID bearer token with the
+audience `https://monitor.azure.com`, and the calling identity **must** have
+the **Monitoring Metrics Publisher** role on the DCR. Without both, the API
+returns `403 Forbidden`. Example:
+
+```powershell
+$token = az account get-access-token --resource https://monitor.azure.com --query accessToken -o tsv
+Invoke-WebRequest -Uri $uri -Method Post -Headers @{
+    'Authorization' = "Bearer $token"
+    'Content-Type'  = 'application/json'
+} -Body $json
+```
+
+To further restrict access, add a **DCE with Private Endpoint** so the
+ingestion URL is only reachable from the private network.
+
 > **Note:** For agent-based DCRs (`kind: Windows`), AMA does *not* use this
 > public endpoint. AMA sends data through Azure Monitor's internal pipeline.
 > The `transformKql` still applies — it filters events regardless of how
