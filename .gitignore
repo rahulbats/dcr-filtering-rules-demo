@@ -1,6 +1,8 @@
 # Bicep build artifacts
 **/*.bicepparam.json
 **/main.json
+# ...except the committed ARM template used by scripts/deploy.ps1 default
+!infra/main.json
 
 # Azure CLI / azd
 .azure/

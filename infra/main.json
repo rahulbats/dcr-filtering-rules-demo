@@ -1,0 +1,392 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.44.1.10279",
+      "templateHash": "12117823223937485201"
+    }
+  },
+  "parameters": {
+    "namePrefix": {
+      "type": "string",
+      "defaultValue": "dcrdemo",
+      "minLength": 3,
+      "maxLength": 16,
+      "metadata": {
+        "description": "Base name used as a prefix for all resources."
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Azure region for all resources."
+      }
+    },
+    "blockedIps": {
+      "type": "array",
+      "defaultValue": [
+        "10.0.0.5",
+        "192.168.1.100"
+      ],
+      "metadata": {
+        "description": "IPs to block. Events containing these source IPs will be dropped at ingestion."
+      }
+    },
+    "retentionInDays": {
+      "type": "int",
+      "defaultValue": 30,
+      "minValue": 30,
+      "maxValue": 730,
+      "metadata": {
+        "description": "Retention in days for the Log Analytics workspace."
+      }
+    }
+  },
+  "variables": {
+    "suffix": "[uniqueString(resourceGroup().id, parameters('namePrefix'))]",
+    "workspaceName": "[format('{0}-law-{1}', parameters('namePrefix'), variables('suffix'))]",
+    "dcrName": "[format('{0}-dcr-{1}', parameters('namePrefix'), variables('suffix'))]",
+    "customTableName": "NetworkLogs",
+    "ipList": "[join(map(parameters('blockedIps'), lambda('ip', format('''{0}''', lambdaVariables('ip')))), ',')]",
+    "transformKql": "[if(empty(parameters('blockedIps')), 'source', format('source | where SourceIP !in ({0})', variables('ipList')))]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "logAnalytics",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "workspaceName": {
+            "value": "[variables('workspaceName')]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "retentionInDays": {
+            "value": "[parameters('retentionInDays')]"
+          },
+          "customTableName": {
+            "value": "[variables('customTableName')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.44.1.10279",
+              "templateHash": "1422870085154492674"
+            }
+          },
+          "parameters": {
+            "workspaceName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the Log Analytics workspace."
+              }
+            },
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region."
+              }
+            },
+            "retentionInDays": {
+              "type": "int",
+              "defaultValue": 30,
+              "metadata": {
+                "description": "Workspace data retention in days."
+              }
+            },
+            "customTableName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the custom log table (without _CL suffix)."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.OperationalInsights/workspaces",
+              "apiVersion": "2022-10-01",
+              "name": "[parameters('workspaceName')]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "sku": {
+                  "name": "PerGB2018"
+                },
+                "retentionInDays": "[parameters('retentionInDays')]",
+                "features": {
+                  "enableLogAccessUsingOnlyResourcePermissions": true
+                }
+              }
+            },
+            {
+              "type": "Microsoft.OperationalInsights/workspaces/tables",
+              "apiVersion": "2022-10-01",
+              "name": "[format('{0}/{1}', parameters('workspaceName'), format('{0}_CL', parameters('customTableName')))]",
+              "properties": {
+                "schema": {
+                  "name": "[format('{0}_CL', parameters('customTableName'))]",
+                  "columns": [
+                    {
+                      "name": "TimeGenerated",
+                      "type": "dateTime"
+                    },
+                    {
+                      "name": "Computer",
+                      "type": "string"
+                    },
+                    {
+                      "name": "SourceIP",
+                      "type": "string"
+                    },
+                    {
+                      "name": "EventID",
+                      "type": "int"
+                    },
+                    {
+                      "name": "EventData",
+                      "type": "string"
+                    },
+                    {
+                      "name": "Message",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "retentionInDays": "[parameters('retentionInDays')]"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('workspaceName'))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "workspaceId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('workspaceName'))]"
+            },
+            "workspaceCustomerId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.OperationalInsights/workspaces', parameters('workspaceName')), '2022-10-01').customerId]"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "dcr",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "dcrName": {
+            "value": "[variables('dcrName')]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "workspaceId": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', 'logAnalytics'), '2025-04-01').outputs.workspaceId.value]"
+          },
+          "workspaceName": {
+            "value": "[variables('workspaceName')]"
+          },
+          "customTableName": {
+            "value": "[variables('customTableName')]"
+          },
+          "transformKql": {
+            "value": "[variables('transformKql')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.44.1.10279",
+              "templateHash": "427689973482241534"
+            }
+          },
+          "parameters": {
+            "dcrName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the Data Collection Rule."
+              }
+            },
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region."
+              }
+            },
+            "workspaceId": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of the destination Log Analytics workspace."
+              }
+            },
+            "workspaceName": {
+              "type": "string",
+              "metadata": {
+                "description": "Friendly name used to refer to the workspace destination inside the DCR."
+              }
+            },
+            "customTableName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the custom log table (without the _CL suffix)."
+              }
+            },
+            "transformKql": {
+              "type": "string",
+              "metadata": {
+                "description": "KQL transform applied at ingestion time. Records not matching are dropped."
+              }
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Insights/dataCollectionRules",
+              "apiVersion": "2023-03-11",
+              "name": "[parameters('dcrName')]",
+              "location": "[parameters('location')]",
+              "kind": "Direct",
+              "properties": {
+                "streamDeclarations": {
+                  "[format('Custom-{0}_CL', parameters('customTableName'))]": {
+                    "columns": [
+                      {
+                        "name": "TimeGenerated",
+                        "type": "datetime"
+                      },
+                      {
+                        "name": "Computer",
+                        "type": "string"
+                      },
+                      {
+                        "name": "SourceIP",
+                        "type": "string"
+                      },
+                      {
+                        "name": "EventID",
+                        "type": "int"
+                      },
+                      {
+                        "name": "EventData",
+                        "type": "string"
+                      },
+                      {
+                        "name": "Message",
+                        "type": "string"
+                      }
+                    ]
+                  }
+                },
+                "destinations": {
+                  "logAnalytics": [
+                    {
+                      "workspaceResourceId": "[parameters('workspaceId')]",
+                      "name": "[parameters('workspaceName')]"
+                    }
+                  ]
+                },
+                "dataFlows": [
+                  {
+                    "streams": [
+                      "[format('Custom-{0}_CL', parameters('customTableName'))]"
+                    ],
+                    "destinations": [
+                      "[parameters('workspaceName')]"
+                    ],
+                    "transformKql": "[parameters('transformKql')]",
+                    "outputStream": "[format('Custom-{0}_CL', parameters('customTableName'))]"
+                  }
+                ]
+              }
+            }
+          ],
+          "outputs": {
+            "dcrId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Insights/dataCollectionRules', parameters('dcrName'))]"
+            },
+            "dcrName": {
+              "type": "string",
+              "value": "[parameters('dcrName')]"
+            },
+            "dcrImmutableId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Insights/dataCollectionRules', parameters('dcrName')), '2023-03-11').immutableId]"
+            },
+            "logsIngestionEndpoint": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Insights/dataCollectionRules', parameters('dcrName')), '2023-03-11').endpoints.logsIngestion]"
+            },
+            "streamName": {
+              "type": "string",
+              "value": "[format('Custom-{0}_CL', parameters('customTableName'))]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments', 'logAnalytics')]"
+      ]
+    }
+  ],
+  "outputs": {
+    "workspaceName": {
+      "type": "string",
+      "value": "[variables('workspaceName')]"
+    },
+    "workspaceId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'logAnalytics'), '2025-04-01').outputs.workspaceId.value]"
+    },
+    "dcrImmutableId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'dcr'), '2025-04-01').outputs.dcrImmutableId.value]"
+    },
+    "dcrResourceId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'dcr'), '2025-04-01').outputs.dcrId.value]"
+    },
+    "dcrName": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'dcr'), '2025-04-01').outputs.dcrName.value]"
+    },
+    "logsIngestionEndpoint": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'dcr'), '2025-04-01').outputs.logsIngestionEndpoint.value]"
+    },
+    "streamName": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', 'dcr'), '2025-04-01').outputs.streamName.value]"
+    },
+    "transformKql": {
+      "type": "string",
+      "value": "[variables('transformKql')]"
+    },
+    "blockedIps": {
+      "type": "array",
+      "value": "[parameters('blockedIps')]"
+    }
+  }
+}
