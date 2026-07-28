@@ -5,10 +5,10 @@
     "namePrefix": {
       "value": "dcrdemo"
     },
-    "blockedIps": {
+    "allowedIps": {
       "value": [
         "10.0.0.5",
-        "192.168.1.100"
+        "192.168.1.0/24"
       ]
     },
     "retentionInDays": {

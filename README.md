@@ -26,7 +26,7 @@ Any record posted to the Logs Ingestion API whose `SourceIP` matches the
 blocked list is dropped at ingestion time — it never lands in
 `NetworkLogs_CL` and is never billed for ingestion/retention.
 
-The blocked IP list is configurable via the `blockedIps` parameter.
+The allowed IP list is configurable via the `allowedIps` parameter.
 
 ## Project layout
 
@@ -160,7 +160,7 @@ ones were dropped by the DCR transform.
 Edit `infra/main.parameters.json` and redeploy:
 
 ```jsonc
-"blockedIps": {
+"allowedIps": {
     "value": [ "10.0.0.5", "192.168.1.100", "203.0.113.7" ]
 }
 ```

@@ -19,7 +19,7 @@ $outputs = az deployment group show `
     --output json | ConvertFrom-Json
 
 $workspaceName = $outputs.workspaceName.value
-$blocked       = $outputs.blockedIps.value
+$allowed       = $outputs.allowedIps.value
 
 $workspaceGuid = az monitor log-analytics workspace show `
     --resource-group $ResourceGroup `
@@ -34,8 +34,8 @@ NetworkLogs_CL
 "@
 
 Write-Host "Workspace : $workspaceName ($workspaceGuid)" -ForegroundColor Cyan
-Write-Host "Blocked IPs (rows with these SourceIPs should be ABSENT):" -ForegroundColor Yellow
-Write-Host "  $($blocked -join ', ')" -ForegroundColor Yellow
+Write-Host "Allowed IPs (only rows with these SourceIPs should be PRESENT):" -ForegroundColor Yellow
+Write-Host "  $($allowed -join ', ')" -ForegroundColor Yellow
 Write-Host "`nKQL:`n$kql`n" -ForegroundColor DarkGray
 
 az monitor log-analytics query `

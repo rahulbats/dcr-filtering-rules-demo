@@ -10,6 +10,20 @@ param retentionInDays int = 30
 @description('Name of the custom log table (without _CL suffix).')
 param customTableName string
 
+@description('Public network access for ingestion. Set to Disabled if org policy forbids public access.')
+@allowed([
+  'Enabled'
+  'Disabled'
+])
+param publicNetworkAccessForIngestion string = 'Disabled'
+
+@description('Public network access for query. Set to Disabled if org policy forbids public access.')
+@allowed([
+  'Enabled'
+  'Disabled'
+])
+param publicNetworkAccessForQuery string = 'Disabled'
+
 resource workspace 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
   name: workspaceName
   location: location
@@ -18,6 +32,8 @@ resource workspace 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
       name: 'PerGB2018'
     }
     retentionInDays: retentionInDays
+    publicNetworkAccessForIngestion: publicNetworkAccessForIngestion
+    publicNetworkAccessForQuery: publicNetworkAccessForQuery
     features: {
       enableLogAccessUsingOnlyResourcePermissions: true
     }

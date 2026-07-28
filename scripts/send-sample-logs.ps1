@@ -29,12 +29,30 @@ $outputs = az deployment group show `
 $endpoint    = $outputs.logsIngestionEndpoint.value
 $dcrId       = $outputs.dcrImmutableId.value
 $streamName  = $outputs.streamName.value
-$blocked     = $outputs.blockedIps.value
+$allowed     = $outputs.allowedIps.value
+$dcrName     = $outputs.dcrName.value
+
+# The logsIngestionEndpoint / immutableId deployment outputs can be empty for Direct DCRs.
+# Fall back to querying the live DCR resource so the script still works.
+if ([string]::IsNullOrWhiteSpace($endpoint) -or [string]::IsNullOrWhiteSpace($dcrId)) {
+    Write-Host "Deployment outputs incomplete; querying the DCR '$dcrName' directly..." -ForegroundColor Yellow
+    $dcr = az monitor data-collection rule show `
+        --resource-group $ResourceGroup `
+        --name $dcrName `
+        --output json | ConvertFrom-Json
+
+    if ([string]::IsNullOrWhiteSpace($endpoint)) { $endpoint = $dcr.endpoints.logsIngestion }
+    if ([string]::IsNullOrWhiteSpace($dcrId))    { $dcrId    = $dcr.immutableId }
+}
+
+if ([string]::IsNullOrWhiteSpace($endpoint)) {
+    throw "Could not resolve the Logs Ingestion endpoint for DCR '$dcrName'. Ensure the DCR is 'Direct' kind and deployment succeeded."
+}
 
 Write-Host "Endpoint   : $endpoint" -ForegroundColor Cyan
 Write-Host "DCR ID     : $dcrId" -ForegroundColor Cyan
 Write-Host "Stream     : $streamName" -ForegroundColor Cyan
-Write-Host "Blocked IPs: $($blocked -join ', ')" -ForegroundColor Yellow
+Write-Host "Allowed IPs: $($allowed -join ', ')" -ForegroundColor Yellow
 
 # Get an access token for the Logs Ingestion API
 $token = az account get-access-token --resource https://monitor.azure.com --query accessToken --output tsv
@@ -75,7 +93,7 @@ $response = Invoke-WebRequest -Uri $uri -Method Post -Headers $headers -Body $js
 
 if ($response.StatusCode -eq 204) {
     Write-Host "Success (HTTP 204) — all events accepted by the API." -ForegroundColor Green
-    Write-Host "The DCR transform will DROP events from: $($blocked -join ', ')" -ForegroundColor Yellow
+    Write-Host "The DCR transform will KEEP only events from allowed IPs: $($allowed -join ', ')" -ForegroundColor Yellow
     Write-Host "`nWait ~2-5 minutes, then run:" -ForegroundColor Yellow
     Write-Host "  ./scripts/query-results.ps1 -ResourceGroup $ResourceGroup" -ForegroundColor Yellow
 } else {
